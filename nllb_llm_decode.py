@@ -134,7 +134,8 @@ def main(params):
 
 
 
-    meta_llama = "meta-llama/Llama-2-13b-chat-hf"
+    meta_llama = "haoranxu/ALMA-7B-R"
+    #meta_llama = "meta-llama/Llama-2-13b-chat-hf"
     llm_tokenizer = LlamaTokenizer.from_pretrained(meta_llama, cache_dir="/project/OML/skoneru/iwslt23/scripts/bloom/cache/", padding_side="left")
     llm_gen_tokenizer = LlamaTokenizer.from_pretrained(meta_llama, cache_dir="/project/OML/skoneru/iwslt23/scripts/bloom/cache/", padding_side="left")
     #llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',
@@ -158,7 +159,7 @@ def main(params):
     #prefix= "<s>[INST] <<SYS>>\nYou translate from English to German. You only translate to Informal German using words like 'du' 'dich' and 'dir'. You translate to Informal German even in formal scenarios.\n<</SYS>>\nEnglish: "
     #self.prefix = "Translate from English to German:\nEnglish: "
     #prefix = "English:\nA college classmate wrote me a couple weeks ago and she said\nGerman:\n Eine Kommilitonin hat mir vor ein paar Wochen geschrieben und gesagt\nEnglish:\nI decided to pay a visit to the manager and he pointed\nGerman:  Also entschied ich mich den Filialleiter zu besuchen\nEnglish:\n"
-    suffix = "\n[/INST]\nGerman:\n "
+    suffix = "\n[/INST]\nGerman:\n"
     #prefix= "[INST] <<SYS>>\nYou are a translator from English to German.\n<</SYS>>\nEnglish:"
     #prefix = "Translate from English to German:\nEnglish: "
     #suffix = "\nGerman: "

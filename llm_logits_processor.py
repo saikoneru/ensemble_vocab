@@ -152,6 +152,7 @@ class LLMLogitsProcessor(LogitsProcessor):
 
         alpha = []
         beta = []
+        next_words = []
         
         for elem in range(len(cxt_rerank_full_tokens)):
             elem_input = llm_inputs.input_ids[elem]
@@ -183,15 +184,11 @@ class LLMLogitsProcessor(LogitsProcessor):
             #if gen_tok == "</s>" or gen_tok[0] == "▁":
                 alpha.append(self.alpha)
                 beta.append(self.beta)
+                next_words.append(True)
             else:
                 alpha.append(1)
                 beta.append(0)
-            #if elem_score < -1.5 :
-            #    alpha.append(1)
-            #    beta.append(0)
-            #else:
-            #    alpha.append(0)
-            #    beta.append(1)
+                next_words.append(False)
 
         alpha_vals = torch.tensor(alpha).view(input_ids.shape[0],-1).contiguous().to(input_ids.device)
         beta_vals = torch.tensor(beta).view(input_ids.shape[0],-1).contiguous().to(input_ids.device)
@@ -202,6 +199,8 @@ class LLMLogitsProcessor(LogitsProcessor):
         for i in range(reranked_scores.shape[0]):
             reranked_scores[i,topk_indices[i,:]] = alpha_vals[i]*scores[i,topk_indices[i,:]] + beta_vals[i]*llm_scores[i]
             #reranked_scores[i,topk_indices[i,:]] = self.alpha*scores[i,topk_indices[i,:]] + self.beta*llm_scores[i]
+        logging.debug("Next token Space boolean")
+        logging.debug(next_words)
         logging.debug("Reranked Scores")
         logging.debug(reranked_scores[reranked_scores != -float("inf")])
         logging.debug("="*100)
