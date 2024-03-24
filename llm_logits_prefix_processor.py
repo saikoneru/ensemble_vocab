@@ -123,7 +123,7 @@ class LLMLogitsProcessor(LogitsProcessor):
             logging.debug(entry)
         logging.debug("="*100)
 
-        rerank_full_tokens = ["\n" + x.split("</s>deu_Latn ")[1] for x in rerank_full_tokens]
+        rerank_full_tokens = ["\n" + x.split("</s>deu_Latn")[1].lstrip() for x in rerank_full_tokens]
         #rerank_full_tokens = [" ".join(x.split("</s>")) for x in rerank_full_tokens]
 
         cxt_rerank_full_tokens = [rerank_full_tokens[idx] for idx in range(len(rerank_full_tokens))]

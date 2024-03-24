@@ -68,6 +68,7 @@ def main(params):
     transformers.set_seed(0)
 
     src = read_data(params.input_file)
+    #src = src[-2:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -159,7 +160,7 @@ def main(params):
     #prefix= "<s>[INST] <<SYS>>\nYou translate from English to German. You only translate to Informal German using words like 'du' 'dich' and 'dir'. You translate to Informal German even in formal scenarios.\n<</SYS>>\nEnglish: "
     prefix = "Translate this from English to German:\nEnglish: "
     #prefix = "English:\nA college classmate wrote me a couple weeks ago and she said\nGerman:\n Eine Kommilitonin hat mir vor ein paar Wochen geschrieben und gesagt\nEnglish:\nI decided to pay a visit to the manager and he pointed\nGerman:  Also entschied ich mich den Filialleiter zu besuchen\nEnglish:\n"
-    suffix = "\nGerman: "
+    suffix = "\nGerman:"
     #prefix= "[INST] <<SYS>>\nYou are a translator from English to German.\n<</SYS>>\nEnglish:"
     #prefix = "Translate from English to German:\nEnglish: "
     #suffix = "\nGerman: "
@@ -175,14 +176,15 @@ def main(params):
     
     for j in range(len(src_batches)):
         src_batch = src_batches[j]
-        src_batch = [x.split("<eos>")[-1] for x in src_batch]
+        #src_batch = [x.split("<eos>")[-1] for x in src_batch]
         inputs = tokenizer(src_batch,return_tensors='pt', padding=True).to(model.device)
         #outputs = model.generate(**inputs, max_new_tokens=params.max_len,num_beams=params.num_beams, early_stopping=False, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"], num_return_sequences=1)
-        outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=True, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"],logits_processor=logits_processor, num_return_sequences=1)
+        outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=False, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"],logits_processor=logits_processor, num_return_sequences=1)
         hyps = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         hyp_llm.extend(hyps)
         cnt+=len(src_batch)
         print(hyps)
+        print(cnt)
 
 
     write_list(hyp_llm, params.output_file)
