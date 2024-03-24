@@ -1,6 +1,7 @@
 import transformers
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, AutoModel, AutoConfig, LogitsProcessorList, BeamSearchScorer, MinLengthLogitsProcessor, LogitsProcessor, LlamaTokenizer
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 import argparse
 import os
 import sys
@@ -17,7 +18,7 @@ import pickle
 from optimum.bettertransformer import BetterTransformer
 from torch import nn
 from peft import PeftModel
-from llm_logits_prefix_processor import LLMLogitsProcessor
+from madlad_llm_logits_prefix_processor import LLMLogitsProcessor
 
 
 
@@ -31,7 +32,7 @@ def get_parser():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--max_len", type=int, default=512)
     parser.add_argument("--topk", type=int, default=5)
-    parser.add_argument("--model", type=str, default="google/flan-t5-small")
+    parser.add_argument("--model", type=str, default="google/madlad400-10b-mt")
     parser.add_argument("--cache_dir", type=str, default="/export/data1/skoneru/cache")
     parser.add_argument("--num_beams", type=int, default=5)
     parser.add_argument("--alpha", type=float, default=0)
@@ -68,7 +69,7 @@ def main(params):
     transformers.set_seed(0)
 
     src = read_data(params.input_file)
-    #src = src[-2:]
+    #src = src[-5:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -80,8 +81,6 @@ def main(params):
     device_map = infer_auto_device_map(
         model,
         # Force splits model.encoder into separate layers and devices
-        no_split_module_classes=model._no_split_modules
-        + ["NllbMoeEncoderLayer", "NllbMoeDecoderLayer"],
         dtype="int8",
     )
 
@@ -104,11 +103,8 @@ def main(params):
 	#    cache_dir=params.cache_dir, 
 	#    device_map=device_map,
 	#    load_in_8bit=True, offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',)
-    model_hf = AutoModelForSeq2SeqLM.from_pretrained(params.model,
-	    cache_dir=params.cache_dir, 
-	    device_map=device_map,
-	    offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/')
-    model = BetterTransformer.transform(model_hf, keep_original_model=True)
+    model_hf = T5ForConditionalGeneration.from_pretrained(model_name, device_map=device_map)
+    model = BetterTransformer.transform(model_hf, keep_original_model=False)
     #model = model_hf
 
     #lm_head_device = model.hf_device_map["lm_head"]
@@ -135,7 +131,8 @@ def main(params):
 
 
 
-    meta_llama = "haoranxu/ALMA-7B-R"
+    meta_llama = "haoranxu/ALMA-13B-R"
+    #meta_llama = "meta-llama/Llama-2-13b-chat-hf"
     llm_tokenizer = LlamaTokenizer.from_pretrained(meta_llama, cache_dir="/project/OML/skoneru/iwslt23/scripts/bloom/cache/", padding_side="right")
     llm_gen_tokenizer = LlamaTokenizer.from_pretrained(meta_llama, cache_dir="/project/OML/skoneru/iwslt23/scripts/bloom/cache/", padding_side="right")
     #llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',
@@ -148,8 +145,8 @@ def main(params):
     #            bnb_4bit_quant_type="nf4",
     #        ),
     #            torch_dtype=torch.float16,)
-    #llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',torch_dtype=torch.bfloat16,load_in_8bit=True)
-    llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2",)
+    llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',torch_dtype=torch.float16,load_in_8bit=True)
+    #llm_model = AutoModelForCausalLM.from_pretrained(meta_llama, device_map=device_map, cache_dir="/export/data1/skoneru/cache/", offload_folder='/project/OML/skoneru/iwslt23/scripts/bloom/cache/',torch_dtype=torch.float16,load_in_8bit=True, attn_implementation="flash_attention_2",)
     #llm_model = PeftModel.from_pretrained(llm_model, "haoranxu/ALMA-7B-Pretrain-LoRA", cache_dir="/project/OML/skoneru/iwslt23/scripts/bloom/cache").to(llm_model.device)
     llm_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     llm_gen_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -158,12 +155,14 @@ def main(params):
 
     #prefix= "<s>[INST] <<SYS>>\nYou translate from English to German. You only translate to Formal German using words like 'sie' 'ihnen' and 'ihrer'. You translate to Formal German even in Informal scenarios.\n<</SYS>>\nEnglish: "
     #prefix= "<s>[INST] <<SYS>>\nYou translate from English to German. You only translate to Informal German using words like 'du' 'dich' and 'dir'. You translate to Informal German even in formal scenarios.\n<</SYS>>\nEnglish: "
-    prefix = "Translate this from English to German:\nEnglish: "
+    #self.prefix = "Translate from English to German:\nEnglish: "
     #prefix = "English:\nA college classmate wrote me a couple weeks ago and she said\nGerman:\n Eine Kommilitonin hat mir vor ein paar Wochen geschrieben und gesagt\nEnglish:\nI decided to pay a visit to the manager and he pointed\nGerman:  Also entschied ich mich den Filialleiter zu besuchen\nEnglish:\n"
-    suffix = "\nGerman:"
+    #suffix = "\n[/INST]\nGerman:\n"
     #prefix= "[INST] <<SYS>>\nYou are a translator from English to German.\n<</SYS>>\nEnglish:"
     #prefix = "Translate from English to German:\nEnglish: "
     #suffix = "\nGerman: "
+    prefix = "Translate this from English to German:\nEnglish: "
+    suffix = " \nGerman: "
 #
     logits_processor = LogitsProcessorList(
         [
@@ -176,10 +175,12 @@ def main(params):
     
     for j in range(len(src_batches)):
         src_batch = src_batches[j]
-        #src_batch = [x.split("<eos>")[-1] for x in src_batch]
+        src_batch = ["<2de> " + x for x in src_batch]
         inputs = tokenizer(src_batch,return_tensors='pt', padding=True).to(model.device)
         #outputs = model.generate(**inputs, max_new_tokens=params.max_len,num_beams=params.num_beams, early_stopping=False, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"], num_return_sequences=1)
-        outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=False, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"],logits_processor=logits_processor, num_return_sequences=1)
+        #outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=False, num_return_sequences=1)
+        outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=False,logits_processor=logits_processor, num_return_sequences=params.num_beams)
+        #outputs = model.generate(**inputs, max_new_tokens=256,num_beams=params.num_beams, early_stopping=False,logits_processor=logits_processor, num_return_sequences=1)
         hyps = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         hyp_llm.extend(hyps)
         cnt+=len(src_batch)
